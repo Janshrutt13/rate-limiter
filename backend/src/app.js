@@ -11,9 +11,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.use("/admin" , adminRoutes);
 app.use(rateLimiter);
 app.use("/api" , apiRoutes);
-app.use("/admin" , adminRoutes);
 
 app.listen(process.env.PORT || 4000, () => {
     console.log("Backend running on port" , process.env.PORT)

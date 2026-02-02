@@ -4,15 +4,18 @@ import { increaseRisk, decreaseRisk } from "../services/riskScore.js";
 export const rateLimiter = async (req, res, next) => {
   const ip = req.ip;
   const now = Date.now();
+  
+  // Track chart data
+  const minuteTimestamp = Math.floor(now / 60000) * 60000;
+  await redis.incr(`chart:requests:${minuteTimestamp}`);
+  await redis.expire(`chart:requests:${minuteTimestamp}`, 3600);
 
-  // 1️⃣ Check if IP is blocked
   const isBlocked = await redis.exists(`blocked:${ip}`);
   if (isBlocked) {
     await redis.incr("metrics:blocked");
     return res.status(403).json({ message: "IP is blocked" });
   }
 
-  // 2️⃣ Define windows (convert ENV → number)
   const windows = [
     {
       key: `rate:minute:${ip}`,
@@ -26,7 +29,7 @@ export const rateLimiter = async (req, res, next) => {
     }
   ];
 
-  // 3️⃣ Check rate limits
+  //Sliding window rate limiting check
   for (const w of windows) {
     const windowStart = now - w.ttl * 1000;
 
@@ -39,6 +42,7 @@ export const rateLimiter = async (req, res, next) => {
 
       let blockTime = 0;
 
+      //Determine risks based on risk score and set block time
       if (risk > 70) blockTime = Number(process.env.BLOCK_3);
       else if (risk > 40) blockTime = Number(process.env.BLOCK_2);
       else if (risk > 10) blockTime = Number(process.env.BLOCK_1);
@@ -53,18 +57,15 @@ export const rateLimiter = async (req, res, next) => {
     }
   }
 
-  // 4️⃣ Record request
   for (const w of windows) {
     await redis.zAdd(w.key, {
       score: now,
       value: now.toString()
     });
 
-    // Set TTL only once (safe)
     await redis.expire(w.key, w.ttl);
   }
 
-  // 5️⃣ Risk decay + metrics
   await decreaseRisk(ip);
   await redis.incr("metrics:total");
 

@@ -1,11 +1,5 @@
-import Overview from "./pages/Overview";
-import Offenders from "./pages/Offenders";
+import Dashboard from "./pages/Dashboard";
 
 export default function App(){
-  return (
-    <div className="p-6 space-y-6">
-        <Overview />
-        <Offenders />
-    </div>
-  );
+  return <Dashboard />;
 }
